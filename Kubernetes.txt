@@ -1,0 +1,13 @@
+- Docker comes with hyperv and has an instance of Linux container running inside hyperv
+- On windows, minikube cannot have both hyperv and virtualbox. Since Docker already comes with hyperv instance, we used hyperv instead.
+- Run gitbash as administrator.
+- Drop both minikube.exe and kubectl.exe into c:/users/vrahimi
+- Need a virtual switch: Hyper-V Manager > Action > Virtual Swith Manager .. Primary Virtual Switch
+- minikube start --memory 10240 --cpus=4 --disk-size=30g --vm-driver=hyperv --hyperv-virtual-switch "Primary Virtual Switch"
+- kubectl get pods
+- minikube dashboard --url
+
+- To reinstall - delete the .minikube and .kube folders from %USERPROFILE% folder. Additionally, open Hyper-V Manager and delete the minkube VM. 
+- minikube status
+- minikube stop/start
+- minikube ssh
