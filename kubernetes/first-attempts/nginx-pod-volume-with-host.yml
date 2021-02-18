@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod-with-hostpath-volume
+spec:
+  restartPolicy: Never
+  containers:
+  - image: ubuntu
+    name: ubuntu-container
+    command: ['/bin/bash', '-ec', 'sleep 3600']
+    volumeMounts:
+    - mountPath: /data
+      name: data-volume
+  volumes:
+  - name: data-volume
+    hostPath:
+      path: /tmp
+      type: Directory

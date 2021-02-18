@@ -2,12 +2,190 @@
 - On windows, minikube cannot have both hyperv and virtualbox. Since Docker already comes with hyperv instance, we used hyperv instead.
 - Run gitbash as administrator.
 - Drop both minikube.exe and kubectl.exe into c:/users/vrahimi
+- https://airwavetechio.medium.com/kubernetes-on-windows-e31c2f75aebe
+
 - Need a virtual switch: Hyper-V Manager > Action > Virtual Swith Manager .. Primary Virtual Switch
 - minikube start --memory 10240 --cpus=4 --disk-size=30g --vm-driver=hyperv --hyperv-virtual-switch "Primary Virtual Switch"
+  (you get a new image in hyper-v with the profile name - -p is the profile name)
+  (Information regarding existing profiles can be found in the ~/.minikube/profiles folder)
+  (kubectl is now configured to use "handson-spring-boot-cloud" cluster and "default" namespace by default)
+  
+  (When a Kubernetes cluster is created in Minikube, a context is created (~/.kube/config) with the same name as the Minikube profile and is then 
+   set as the current context. So, kubectl commands that are issued after the cluster is created in Minikube will be sent to that cluster)
+  (kubectl config get-contexts)
+  
+	A context is a combination of the following:
+		•	A Kubernetes cluster
+		•	Authentication information for a user
+		•	A default namespace
+
+	minikube delete --profile handson-spring-boot-cloud   (deletes the whole hyper-v image)
+	
+	To enable ingress and metrics-server
+	minikube addons enable ingress
+	minikube addons enable metrics-server
+
+	kubectl get nodes
+	Once created, the cluster will initialize itself in the background, starting up a number of system pods in the kube-system namespace. 
+	We can monitor its progress by issuing the following command:
+		kubectl get pods --namespace=kube-system
+	Once the startup is complete, the preceding command should report the status for all pods as Running and the READY count should be 1/1, 
+	meaning that a single container in each pod is up and running:
+
+	For a deployment:
+	kubectl create namespace hands-on
+	kubectl config set-context $(kubectl config current-context) --namespace=hands-on
+	kubectl config get-contexts
+	kubectl apply -f kubernetes/first-attempts/nginx-deployment.yaml    <----- deployment`
+	kubectl apply -f kubernetes/first-attempts/nginx-service.yaml		<----- service for port
+	minikube ip
+	http://192.168.99.116:30080
+	kubectl describe deploy nginx-deploy
+	kubectl get deploy nginx-deploy -o yaml > kubeserve-spec.yaml       <--------- exports the yaml file
+	kubectl run -i --rm --restart=Never curl-client --image=tutum/curl:alpine --command -- curl -s 'http://nginx-service:80'
+	kubectl delete namespace first-attempts
+	minikube stop/start     <----  goes back to default namespace
+	
+	to delete
+	minikube delete
+	
+	You can build Docker images from source as follows:
+	eval $(minikube docker-env)
+	./gradlew build && docker-compose build
+	The eval $(minikube docker-env) command directs the local Docker client to communicate with the Docker engine in Minikube, 
+	for example, when building the Docker images.
+
+
 - kubectl get pods
+- kubectl logs <pod name> | wc -l    <--- How many times each pod handled requests
+- kubectl scale deploy k8s-for-beginners --replicas=5	<-- change the number of replicas
+- kubectl delete deploy k8s-for-beginners 
+- kubectl delete service k8s-for-beginners
+- kubectl get pod --show-labels
+- kubectl descrive pod pod-with-labels
+- kubectl label pod pod-without-initial-labels app=nginx    <----- add labels to a currently running pod
+- kubectl get pods -l environment=production                <----- show all pods with that label
 - minikube dashboard --url
 
 - To reinstall - delete the .minikube and .kube folders from %USERPROFILE% folder. Additionally, open Hyper-V Manager and delete the minkube VM. 
 - minikube status
 - minikube stop/start
 - minikube ssh
+
+--  Edit resources on a deployment
+- kubectl edit deploy melonvote-front
+
+-- kubectl get pods -n kube-system --v=8
+
+
+-- different ways to access the API server:
+1) Using Client Certificate Authentication
+	- kubectl config view
+	- curl --cert ~/.minikube/profiles/minikube/client.crt --key ~/.minikube/profiles/minikube/client.key --cacert ~/.minikube/ca.crt https://192.168.0.182:8443/api
+	
+2) Using a ServiceAccount Bearer Token
+
+----------------------------------------------------
+Pod - the basic unit of deployment. Can have many containers running in it.
+      pod has a unique IP and port space, shared by all the containers in that pod. This means that different containers inside a pod can communicate 
+	  with each other using their corresponding ports on localhost.
+	  A pod can have multiple containers defined in the yaml file.
+	  
+	  containerPort - exposes a port that can be accessed from outside the pod.
+	  
+	- winpty kubectl exec nginx-deploy-f8f6db4fc-tqzt5 -it //bin//bash    (kubectl exec pod-name -it /bin/bash)   <--- runs bash shell inside the pod
+	- winpty kubectl exec --stdin --tty pod-name -- //bin//bash                                                   <--- new way
+	- winpty kubectl exec nginx-deploy-f8f6db4fc-tqzt5 -c container-2 -it //bin//bash
+	
+	- kubectl logs -f pod-name container-1
+	
+	apt-get update
+	apt-get install procps
+	ps aux
+	kill 1  - this kills the container and not the pod. container is restarted.
+
+Container -
+	
+
+	  
+Node - various machines running in our cluster (this is hyperv image, in case of minikube, can only have one)
+       You can create a pod on a specific node by using nodeName, or really using nodeSelector
+----------------------------------------------------
+ReplicaSet - controller of mulitple pods across different nodes in the cluster.
+	Selector - The ReplicaSet will try to acquire Pods that have that label.
+	
+	kubectl scale --replicas=4 rs nginx-replicaset            <----- increase the number of replicas in a ReplicaSet
+	
+Deployment - wrapper around a ReplicaSet to make it easier to use.
+
+	If container has environment variables
+        env:
+          - name: SPRING_PROFILES_ACTIVE
+            value: "docker"
+			
+	kubectl --namespace hands-on get pods 
+	kubectl --namespace hands-on describe pod any-pod		<---- can see the env variables are set
+----------------------------------------------------
+Types of ServiceAccount
+NodePort - makes internal Pods accessible on a port on the node on which the pods are running.
+			type: NodePort
+			ports:
+				- targetPort: 8443      <--- application port running on the pod.  The port in the pod where the requests shall be forwarded.
+				  port: 443             <--- service port. Service receives internal requests on port 443 and forwards them to 8443 on the pod.
+				  nodePort: 32023       <--- port where the service is externally accessible. (minikube ip) gives the cluster ip where we can access this port.
+				  
+				  In this case, application runs on 443. Service runs on 8443.  (kubectl get service svc-name) gives you the cluster ip with 8443 port.
+				  If you do minikube ssh, inside you can do curl clusterip:8443.
+				  
+ClusterIP - (default type) exposes the Service on a certain IP inside the cluster.
+
+	kubectl cluster-info dump | grep -m 1 service-cluster-ip-range             <---- valid range of ips for the cluster
+LoadBalancer - exposes the application externally using the load balancer provided by the cloud provider.
+				The LoadBalancer Service uses the implementation offered by the cloud provider and assigns an external IP address to the Service.
+ExternalName - points to a DNS rather than a set of pods. It maps a Service to a DNS name.
+
+Ingress - Ingress is an object that defines rules that are used to manage external access to the Services in a Kubernetes cluster.
+
+--------------------------------------------------------
+Volumes
+- PersistentVolumeClaim (PVC) - scoped by namespace, so pods can only access the PVCs created within the same namespace.
+
+--------------------------------------------------------
+ConfigMaps and Secrets
+- ConfigMaps and Secrets reside in the specific namespace in which they are created. They can only be referenced by Pods residing in the same namespace.
+- will be loaded to the application via an environment variable or a set of files
+- kubectl create configmap <map-name> <data-source>   (data source is key-value pair)
+	- kubectl create configmap singlevalue-map --from-literal=partner-url=https://www.auppost.com.au --namespace configmap-test
+	- kubectl get configmap singlevalue-map -o yaml --namespace configmap-test
+	- envFrom:
+      - configMapRef:
+          name: singlevalue-map
+
+	- kubectl create configmap full-file-map --from-file=./application.properties --namespace configmap-test
+	- volumes:
+		- name: config-volume
+		  configMap:
+			# Provide the name of the ConfigMap containing the files you want
+			# to add to the container
+			name: full-file-map
+
+	- kubectl create configmap map-from-folder --from-file=./ -n configmap-test
+	- kubectl describe configmap map-from-folder -n configmap-test
+	
+- Secret provides a way to store sensitive data
+- kubectl create secret generic test-secret --from-literal=password=secretvalue --namespace configmap-test
+- kubectl describe secret test-secret --namespace configmap-test
+	envFrom:
+      - secretRef:
+          name: test-secret
+
+
+
+- docker rm $(docker ps -a -q)  <-- delete all stopped containers
+- docker stop $(docker ps | grep kube-apiserver | grep -v pause | awk '{print $1}')
+
+- push docker image to dockerhub account
+- docker login
+- docker tag k8s-for-beginners:v0.0.1 <your_DockerHub_username>/k8s-for-beginners:v0.0.1
+- docker push <your_username>/k8s-for-beginners:v0.0.1
+- https://hub.docker.com/repository/docker/<username>/k8s-for-beginners/tags               <--- image will be available here
